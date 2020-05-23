@@ -11,22 +11,36 @@ import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.util.HashMap;
 
-public class Synchronizer {
+public class RemoteSynchronizer {
 	private WatchService watchservice = null;
 	private HashMap<WatchKey,Path> key_to_path = null;
 	private final Path src;
-	private final Path dest;
+	private final String dest;	// 默认带后缀
 	
-	public Synchronizer(String src_str, String dest_str) throws IOException {
+	/**
+	 * 
+	 * @param src_str: local dir path
+	 * @param dest_str: s3 dir path, either ends with "/" or empty string
+	 * @throws IOException
+	 */
+	public RemoteSynchronizer(String src_str, String dest_str) throws IOException {
 		watchservice = FileSystems.getDefault().newWatchService();
 		key_to_path = new HashMap();
-		if(src_str != null)
-			src = Paths.get(src_str);
-		else src = null;
 		
-		if(dest_str != null)
-			dest = Paths.get(dest_str);
-		else dest = null;
+		if(src_str != null) {
+			src = Paths.get(src_str);
+			if(!src.toFile().isDirectory())
+				throw new IOException();
+		}
+		else
+			throw new IOException();
+		if(dest_str != null) {
+			dest = dest_str;
+			if(!dest_str.endsWith("/") && dest_str.length()!= 0)
+				throw new IOException("dest_str must end with '/'");
+		}
+		else 
+			throw new IOException();
 	}
 	
 	// 为 path 及其下所有目录和文件登记
@@ -46,9 +60,15 @@ public class Synchronizer {
 		}
 	}
 	
-	public Path getDest(Path src_path) {
+	/**
+	 * 
+	 * @param src_path: 输入一个完整的目录，输出一个  s3 中对应的目录路径
+	 * @return
+	 */
+	public String getDest(Path src_path) {
+		if(src_path.equals(src)) return dest;
 		Path common_path = src_path.subpath(this.src.getNameCount(), src_path.getNameCount());
-		Path dest_path = dest.resolve(common_path);
+		String dest_path = dest + common_path.toString().replace("\\", "/") + "/";
 		return dest_path;
 	}
 	
@@ -63,31 +83,32 @@ public class Synchronizer {
 				if(event.kind() == StandardWatchEventKinds.ENTRY_CREATE) {
 					registerWatchService(src_path);
 					System.out.println("create new file "+ src_path);
-					Path dest_path = getDest(src_path);
-					FileCopy.fileCopy(src_path, dest_path);
+					String dest_prefix = getDest(src_path.getParent());
+					S3Helper.uploadDir(src_path.getParent(), dest_prefix, src_path.getFileName().toString());
 				}
 				else if(event.kind() == StandardWatchEventKinds.ENTRY_DELETE) {
-					System.out.println("delete file " + src_path);
-					Path dest_path = getDest(src_path);
-					FileCopy.deleteDir(dest_path.toFile());
+					String dest_prefix = getDest(src_path.getParent());
+						S3Helper.deleteDir(dest_prefix+src_path.getFileName());
 				}
 				else if(event.kind() == StandardWatchEventKinds.ENTRY_MODIFY) {
-					if(!file.isDirectory())
-						System.out.println("modify file " + src_path);
+//					if(!file.isDirectory()) 
+//						System.out.println("modify file " + src_path);
 				}
 			}
 			boolean valid = watchkey.reset();
 			if(!valid) {
-				System.out.println(key_to_path.get(watchservice)+"doesn't exist");
+//				System.out.println(key_to_path.get(watchservice)+"doesn't exist");
 				key_to_path.remove(watchkey);
 			}
 		}
 	}
 	
 	public void init() throws IOException, InterruptedException {
-		FileCopy.fileCopy(src, dest);
+		S3Helper.init();
+		
+		for(File sub_file : src.toFile().listFiles())
+			S3Helper.uploadDir(src, dest, sub_file.getName());
 		registerWatchService(this.src);
 		listening();
-		
 	}
 }
