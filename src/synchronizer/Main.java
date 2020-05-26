@@ -9,13 +9,14 @@ import java.nio.file.StandardWatchEventKinds;
 import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
+import java.util.Iterator;
 
 
 public class Main {
 	public static void main(String args[]) throws IOException, InterruptedException {
-		String src = "D:\\Desktop\\src3";
-		String dest = "src3/";
-		RemoteSynchronizer s = new RemoteSynchronizer(src,dest);
+//		String src = "D:\Desktop\test";
+//		String dest = "test/";
+		RemoteSynchronizer s = new RemoteSynchronizer(args[0],args[1]);
 		s.init();
 	}
 }

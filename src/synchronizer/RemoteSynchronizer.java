@@ -30,7 +30,7 @@ public class RemoteSynchronizer {
 		if(src_str != null) {
 			src = Paths.get(src_str);
 			if(!src.toFile().isDirectory())
-				throw new IOException();
+				throw new IOException("local file is not a directory or file doesn't exist");
 		}
 		else
 			throw new IOException();
@@ -78,19 +78,21 @@ public class RemoteSynchronizer {
 			for(WatchEvent<?> event : watchkey.pollEvents()) {
 				Path parent = key_to_path.get(watchkey);
 				Path src_path = parent.resolve((Path)event.context());
-				File file = src_path.toFile();
-				
+				String dest_prefix = getDest(src_path.getParent());
 				if(event.kind() == StandardWatchEventKinds.ENTRY_CREATE) {
 					registerWatchService(src_path);
-					System.out.println("create new file "+ src_path);
-					String dest_prefix = getDest(src_path.getParent());
+					System.out.format("create new file ¡¾%s¡¿", src_path);
+					
 					S3Helper.uploadDir(src_path.getParent(), dest_prefix, src_path.getFileName().toString());
 				}
 				else if(event.kind() == StandardWatchEventKinds.ENTRY_DELETE) {
-					String dest_prefix = getDest(src_path.getParent());
 						S3Helper.deleteDir(dest_prefix+src_path.getFileName());
 				}
 				else if(event.kind() == StandardWatchEventKinds.ENTRY_MODIFY) {
+					if(!src_path.toFile().isDirectory()) {
+						S3Helper.upload(src_path,dest_prefix+src_path.getFileName());
+						System.out.println("modify file "+ src_path);
+					}
 //					if(!file.isDirectory()) 
 //						System.out.println("modify file " + src_path);
 				}
