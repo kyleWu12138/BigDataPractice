@@ -177,8 +177,6 @@ public class S3Helper {
 	
 	
 	public static void uploadDir(Path src_prefix, String dest_prefix, String file_name) {
-//		System.out.println("targetpath:"+dest_prefix+file_name);
-		
 		Path src_path = src_prefix.resolve(file_name);
 		File file = src_path.toFile();
 		if(file == null) return;
